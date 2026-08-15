@@ -64,6 +64,8 @@ publication.
 ├── .data/                 # scratch space for local dumps (git-ignored)
 └── keycloak/              # host directory for themes and providers
     ├── themes/            # custom login/account themes, mounted read-only
+    │   ├── modern.base/   # token-driven base login theme — see login-theme.md
+    │   └── acme/          # example child theme: tokens only, no CSS
     └── providers/         # custom SPI JARs, mounted read-only
 ```
 
@@ -372,7 +374,8 @@ Both mounts are read-only (`:ro`) — the container never needs to write there, 
 `ro` keeps a misbehaving provider from modifying your working tree.
 
 - `themes/` — custom login, account, email and admin themes. In `start-dev`,
-  theme caching is disabled, so edits are picked up on refresh.
+  theme caching is disabled, so edits are picked up on refresh. The login themes
+  in this repo are documented in [login-theme.md](login-theme.md).
 - `providers/` — custom SPI implementations packaged as JARs (authenticators,
   event listeners, user storage federation). Adding a JAR requires a restart, and
   in production a rebuild (`kc.sh build`).

@@ -1,0 +1,974 @@
+/* =========================================================
+   MODERN-BASE — LOGIN STYLESHEET
+   =========================================================
+   The one rule this file follows: it never hardcodes a colour, a radius, a font
+   or a spacing step. Every such value reads a `--kc-*` custom property that
+   template.ftl emits from the `kcToken*` entries in theme.properties.
+
+   That is what makes the theme inheritable — a child theme restyles the whole
+   login experience by overriding token values, and this file is never copied.
+
+   Each `var()` carries a fallback so the page still renders sanely if a token
+   is missing (a child theme that sets `kcTokenColorPrimary=` to an empty value,
+   for instance: template.ftl skips empty properties rather than emitting an
+   invalid declaration).
+
+   Class names come from the `kc*Class` properties in theme.properties; the
+   `#kc-*` id hooks are rendered by the FreeMarker templates in the `base` theme
+   and cannot be renamed.
+   ========================================================= */
+
+/* ---------------------------------------------------------
+   1. RESET & PAGE
+   --------------------------------------------------------- */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+.kc-html {
+  /* Tells the browser which palettes this page supports, so it themes the
+     controls it draws itself — scrollbars, spinners, date pickers, autofill. */
+  color-scheme: var(--kc-color-scheme, light dark);
+  -webkit-text-size-adjust: 100%;
+  font-size: var(--kc-font-size-base, 1rem);
+}
+
+.kc-body {
+  margin: 0;
+  min-height: 100vh;
+  /* dvh accounts for mobile browser chrome collapsing on scroll. */
+  min-height: 100dvh;
+  font-family: var(--kc-font-family, system-ui, sans-serif);
+  font-size: var(--kc-font-size-base, 1rem);
+  font-weight: var(--kc-font-weight-normal, 400);
+  line-height: var(--kc-line-height, 1.5);
+  color: var(--kc-color-text, #0f172a);
+  background-color: var(--kc-color-background, #f8fafc);
+  background: var(--kc-page-background, var(--kc-color-background, #f8fafc));
+  background-attachment: fixed;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Page shell: brand above, card below, both centred with room to breathe. */
+.kc-page {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kc-space-lg, 1.5rem);
+  min-height: 100dvh;
+  padding: var(--kc-space-xl, 2rem) var(--kc-space-md, 1rem);
+}
+
+/* ---------------------------------------------------------
+   2. BRAND
+   --------------------------------------------------------- */
+
+.kc-page__header {
+  width: 100%;
+  max-width: var(--kc-card-width, 27rem);
+  text-align: center;
+}
+
+.kc-page__brand {
+  font-family: var(--kc-font-family-heading, inherit);
+  font-size: var(--kc-font-size-lg, 1.125rem);
+  font-weight: var(--kc-font-weight-bold, 650);
+  color: var(--kc-color-text, #0f172a);
+}
+
+/* The logo slot in template.ftl. Height is the token; width follows the
+   intrinsic aspect ratio, so any logo file works without cropping. */
+.kc-brand__logo {
+  display: block;
+  height: var(--kc-logo-height, 2.25rem);
+  width: auto;
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+/* ---------------------------------------------------------
+   3. CARD
+   --------------------------------------------------------- */
+
+.kc-card {
+  position: relative;
+  width: 100%;
+  max-width: var(--kc-card-width, 27rem);
+  padding: var(--kc-card-padding, 2rem);
+  background-color: var(--kc-color-surface, #ffffff);
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border, #e2e8f0);
+  border-radius: var(--kc-radius-lg, 16px);
+  box-shadow: var(--kc-shadow-lg, 0 20px 45px -20px rgba(15, 23, 42, 0.28));
+  /* Clips the accent strip below to the card's rounded corners. */
+  overflow: hidden;
+}
+
+/* Brand accent across the top edge. Setting --kc-card-accent-height to 0
+   removes it without leaving a stray pseudo-element behind. */
+.kc-card::before {
+  content: "";
+  position: absolute;
+  inset-block-start: 0;
+  inset-inline: 0;
+  height: var(--kc-card-accent-height, 3px);
+  background: var(--kc-card-accent, var(--kc-color-primary, #4f46e5));
+}
+
+.kc-card__header {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-sm, 0.5rem);
+  margin-block-end: var(--kc-space-lg, 1.5rem);
+}
+
+#kc-page-title {
+  margin: 0;
+  font-family: var(--kc-font-family-heading, inherit);
+  font-size: var(--kc-font-size-title, 1.5rem);
+  font-weight: var(--kc-font-weight-bold, 650);
+  letter-spacing: var(--kc-letter-spacing-title, -0.02em);
+  line-height: 1.25;
+  color: var(--kc-color-text, #0f172a);
+}
+
+/* "Signing in as <user>" row, with the restart-flow link on pages that show it. */
+#kc-username {
+  display: flex;
+  align-items: center;
+  gap: var(--kc-space-sm, 0.5rem);
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  color: var(--kc-color-text-muted, #64748b);
+}
+
+#kc-attempted-username {
+  font-weight: var(--kc-font-weight-medium, 500);
+  color: var(--kc-color-text, #0f172a);
+}
+
+#reset-login {
+  display: inline-flex;
+  color: var(--kc-color-text-muted, #64748b);
+}
+
+#reset-login:hover {
+  color: var(--kc-color-primary, #4f46e5);
+}
+
+.kc-login-tooltip {
+  display: inline-flex;
+  align-items: center;
+}
+
+/* The tooltip text ships in the markup; it only appears on hover/focus. */
+.kc-tooltip-text {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* "* Required fields" subtitle on profile forms. */
+.subtitle {
+  font-size: var(--kc-font-size-xs, 0.75rem);
+  color: var(--kc-color-text-muted, #64748b);
+}
+
+.required {
+  color: var(--kc-color-danger, #b91c1c);
+}
+
+/* ---------------------------------------------------------
+   4. FORM
+   --------------------------------------------------------- */
+
+.kc-form,
+#kc-form-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-md, 1rem);
+}
+
+/* base renders forms both with and without kcFormClass, so the login form's
+   own id gets the same treatment. */
+#kc-form-login {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-md, 1rem);
+}
+
+.kc-form__group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-xs, 0.25rem);
+  /* Forms are laid out with flex `gap`; this keeps groups from double-spacing
+     when a template nests them inside a non-flex container. */
+  margin: 0;
+}
+
+.kc-label {
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  font-weight: var(--kc-font-weight-medium, 500);
+  color: var(--kc-color-text, #0f172a);
+}
+
+.kc-input {
+  width: 100%;
+  min-height: var(--kc-control-height, 2.75rem);
+  padding: 0 var(--kc-control-padding-inline, 0.75rem);
+  font-family: inherit;
+  font-size: var(--kc-font-size-base, 1rem);
+  color: var(--kc-color-text, #0f172a);
+  background-color: var(--kc-color-surface, #ffffff);
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border-strong, #cbd5e1);
+  border-radius: var(--kc-radius-md, 10px);
+  transition: border-color var(--kc-transition, 150ms ease),
+    box-shadow var(--kc-transition, 150ms ease);
+}
+
+.kc-input--textarea {
+  min-height: 6rem;
+  padding: var(--kc-space-sm, 0.5rem);
+  resize: vertical;
+}
+
+.kc-input::placeholder {
+  color: var(--kc-color-text-muted, #64748b);
+  opacity: 0.75;
+}
+
+.kc-input:hover {
+  border-color: var(--kc-color-primary, #4f46e5);
+}
+
+.kc-input:focus,
+.kc-input:focus-visible {
+  outline: none;
+  border-color: var(--kc-color-primary, #4f46e5);
+  box-shadow: 0 0 0 3px var(--kc-color-focus-ring, rgba(79, 70, 229, 0.35));
+}
+
+.kc-input[aria-invalid="true"] {
+  border-color: var(--kc-color-danger, #b91c1c);
+}
+
+.kc-input[aria-invalid="true"]:focus {
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--kc-color-danger, #b91c1c) 30%, transparent);
+}
+
+.kc-input:disabled,
+.kc-input[readonly] {
+  background-color: var(--kc-color-surface-muted, #f8fafc);
+  color: var(--kc-color-text-muted, #64748b);
+  cursor: not-allowed;
+}
+
+.kc-input__error {
+  display: block;
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  color: var(--kc-color-danger, #b91c1c);
+}
+
+.kc-input__helper {
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  color: var(--kc-color-text-muted, #64748b);
+}
+
+/* Password field + visibility toggle. The ring is drawn on the group so the
+   input and the button read as one control when focused. */
+.kc-input-group {
+  display: flex;
+  align-items: stretch;
+  border-radius: var(--kc-radius-md, 10px);
+}
+
+.kc-input-group .kc-input {
+  border-start-end-radius: 0;
+  border-end-end-radius: 0;
+  border-inline-end: none;
+}
+
+.kc-input-group:focus-within {
+  box-shadow: 0 0 0 3px var(--kc-color-focus-ring, rgba(79, 70, 229, 0.35));
+}
+
+.kc-input-group:focus-within .kc-input {
+  box-shadow: none;
+}
+
+.kc-password-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: var(--kc-control-height, 2.75rem);
+  padding: 0 var(--kc-space-sm, 0.5rem);
+  color: var(--kc-color-text-muted, #64748b);
+  background-color: var(--kc-color-surface, #ffffff);
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border-strong, #cbd5e1);
+  border-start-start-radius: 0;
+  border-end-start-radius: 0;
+  border-start-end-radius: var(--kc-radius-md, 10px);
+  border-end-end-radius: var(--kc-radius-md, 10px);
+  cursor: pointer;
+  transition: color var(--kc-transition, 150ms ease),
+    background-color var(--kc-transition, 150ms ease);
+}
+
+.kc-password-toggle:hover {
+  color: var(--kc-color-text, #0f172a);
+  background-color: var(--kc-color-surface-hover, #f1f5f9);
+}
+
+.kc-input-group:focus-within .kc-input,
+.kc-input-group:focus-within .kc-password-toggle {
+  border-color: var(--kc-color-primary, #4f46e5);
+}
+
+/* Options row: "remember me" on one side, "forgot password?" on the other. */
+.kc-form__settings,
+#kc-form-options {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--kc-space-sm, 0.5rem);
+}
+
+.kc-form__settings {
+  flex-direction: row;
+  font-size: var(--kc-font-size-sm, 0.875rem);
+}
+
+.kc-form__options-secondary {
+  margin-inline-start: auto;
+}
+
+/* Checkboxes and radios. `.checkbox` is hardcoded by base's login.ftl for the
+   remember-me control; `.kc-choice` comes from the kcInputClassCheckbox family
+   used by the other pages. */
+.kc-choice,
+.checkbox {
+  display: flex;
+  align-items: center;
+  gap: var(--kc-space-sm, 0.5rem);
+  font-size: var(--kc-font-size-sm, 0.875rem);
+}
+
+.kc-choice__label,
+.checkbox label {
+  display: flex;
+  align-items: center;
+  gap: var(--kc-space-sm, 0.5rem);
+  color: var(--kc-color-text, #0f172a);
+  cursor: pointer;
+}
+
+.kc-choice__input,
+.checkbox input[type="checkbox"],
+.checkbox input[type="radio"] {
+  width: 1rem;
+  height: 1rem;
+  margin: 0;
+  accent-color: var(--kc-color-primary, #4f46e5);
+  cursor: pointer;
+}
+
+.kc-choice__label--disabled {
+  color: var(--kc-color-text-muted, #64748b);
+  cursor: not-allowed;
+}
+
+.kc-form__buttons,
+#kc-form-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-sm, 0.5rem);
+  margin-block-start: var(--kc-space-xs, 0.25rem);
+}
+
+/* ---------------------------------------------------------
+   5. BUTTONS
+   --------------------------------------------------------- */
+
+/* base composes these classes, so `.kc-btn` holds the shared shape and the
+   modifiers only carry colour. `input[type=submit]` is styled through the same
+   class — several pages render the primary action as an input, not a button. */
+.kc-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--kc-space-sm, 0.5rem);
+  min-height: var(--kc-control-height, 2.75rem);
+  padding: 0 var(--kc-space-md, 1rem);
+  font-family: inherit;
+  font-size: var(--kc-font-size-base, 1rem);
+  font-weight: var(--kc-font-weight-medium, 500);
+  line-height: 1.2;
+  text-align: center;
+  text-decoration: none;
+  border: var(--kc-border-width, 1px) solid transparent;
+  border-radius: var(--kc-radius-md, 10px);
+  cursor: pointer;
+  transition: background-color var(--kc-transition, 150ms ease),
+    border-color var(--kc-transition, 150ms ease),
+    color var(--kc-transition, 150ms ease),
+    box-shadow var(--kc-transition, 150ms ease);
+}
+
+.kc-btn--block {
+  width: 100%;
+}
+
+.kc-btn--lg {
+  min-height: calc(var(--kc-control-height, 2.75rem) + 0.25rem);
+  font-size: var(--kc-font-size-lg, 1.125rem);
+}
+
+.kc-btn--primary {
+  color: var(--kc-color-on-primary, #ffffff);
+  background-color: var(--kc-color-primary, #4f46e5);
+  box-shadow: var(--kc-shadow-sm, 0 1px 2px rgba(15, 23, 42, 0.06));
+}
+
+.kc-btn--primary:hover {
+  background-color: var(--kc-color-primary-hover, #4338ca);
+}
+
+.kc-btn--primary:active {
+  background-color: var(--kc-color-primary-active, #3730a3);
+}
+
+.kc-btn--secondary,
+.kc-btn--default {
+  color: var(--kc-color-text, #0f172a);
+  background-color: var(--kc-color-surface, #ffffff);
+  border-color: var(--kc-color-border-strong, #cbd5e1);
+}
+
+.kc-btn--secondary:hover,
+.kc-btn--default:hover {
+  background-color: var(--kc-color-surface-hover, #f1f5f9);
+  border-color: var(--kc-color-primary, #4f46e5);
+}
+
+.kc-btn--link {
+  min-height: 0;
+  padding: 0;
+  color: var(--kc-color-link, #4f46e5);
+  background: none;
+  border: none;
+}
+
+.kc-btn--link:hover {
+  color: var(--kc-color-link-hover, #4338ca);
+  text-decoration: underline;
+}
+
+/* Applied by base's `data-once-link` script after a click, to stop double
+   submissions on identity-provider buttons. */
+.kc-btn--disabled,
+.kc-btn[aria-disabled="true"],
+.kc-btn:disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+/* ---------------------------------------------------------
+   6. LINKS & FOCUS
+   --------------------------------------------------------- */
+
+a {
+  color: var(--kc-color-link, #4f46e5);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--kc-color-link-hover, #4338ca);
+  text-decoration: underline;
+}
+
+/* One visible focus ring for everything the browser focuses, keyboard-only.
+   :focus-visible keeps it off mouse clicks without hiding it from tab users. */
+:focus-visible {
+  outline: 2px solid var(--kc-color-primary, #4f46e5);
+  outline-offset: 2px;
+  border-radius: var(--kc-radius-sm, 6px);
+}
+
+/* Already handled by the box-shadow ring above. */
+.kc-input:focus-visible,
+.kc-input-group:focus-within :focus-visible {
+  outline: none;
+}
+
+.kc-sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---------------------------------------------------------
+   7. ALERTS
+   --------------------------------------------------------- */
+
+.kc-alert {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--kc-space-sm, 0.5rem);
+  padding: var(--kc-space-sm, 0.5rem) var(--kc-space-md, 1rem);
+  margin-block-end: var(--kc-space-md, 1rem);
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  border: var(--kc-border-width, 1px) solid currentColor;
+  /* The type modifiers below set `color`, which then drives the border, the
+     icon (currentColor mask) and the accent strip in one go. */
+  border-inline-start-width: 3px;
+  border-radius: var(--kc-radius-md, 10px);
+}
+
+.kc-alert__icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: calc(var(--kc-line-height, 1.5) * var(--kc-font-size-sm, 0.875rem));
+}
+
+.kc-alert__title {
+  color: var(--kc-color-text, #0f172a);
+}
+
+.kc-alert--error {
+  color: var(--kc-color-danger, #b91c1c);
+  background-color: var(--kc-color-danger-surface, #fef2f2);
+}
+
+.kc-alert--warning {
+  color: var(--kc-color-warning, #b45309);
+  background-color: var(--kc-color-warning-surface, #fffbeb);
+}
+
+.kc-alert--success {
+  color: var(--kc-color-success, #15803d);
+  background-color: var(--kc-color-success-surface, #f0fdf4);
+}
+
+.kc-alert--info {
+  color: var(--kc-color-info, #0369a1);
+  background-color: var(--kc-color-info-surface, #f0f9ff);
+}
+
+/* ---------------------------------------------------------
+   8. ICONS
+   --------------------------------------------------------- */
+
+/* No icon font and no image requests: each icon is an inline SVG used as a
+   mask, filled with `currentColor`. That means an icon always matches the
+   colour of the text around it — including in the dark palette — and adds zero
+   network requests to the login critical path. */
+.kc-icon {
+  display: inline-block;
+  flex: none;
+  width: 1.15em;
+  height: 1.15em;
+  background-color: currentColor;
+  -webkit-mask: var(--kc-icon-src) no-repeat center / contain;
+  mask: var(--kc-icon-src) no-repeat center / contain;
+}
+
+.kc-icon--error {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 8v4'/%3E%3Cpath d='M12 16h.01'/%3E%3C/svg%3E");
+}
+
+.kc-icon--warning {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3'/%3E%3Cpath d='M12 9v4'/%3E%3Cpath d='M12 17h.01'/%3E%3C/svg%3E");
+}
+
+.kc-icon--success {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='m9 12 2 2 4-4'/%3E%3C/svg%3E");
+}
+
+.kc-icon--info {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='12' cy='12' r='10'/%3E%3Cpath d='M12 16v-4'/%3E%3Cpath d='M12 8h.01'/%3E%3C/svg%3E");
+}
+
+.kc-icon--eye {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7-10-7-10-7Z'/%3E%3Ccircle cx='12' cy='12' r='3'/%3E%3C/svg%3E");
+}
+
+.kc-icon--eye-off {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M9.9 4.24A9.1 9.1 0 0 1 12 4c6.4 0 10 7 10 7a18.5 18.5 0 0 1-2.6 3.5'/%3E%3Cpath d='M6.6 6.6A18.5 18.5 0 0 0 2 11s3.6 7 10 7a9 9 0 0 0 5.4-1.6'/%3E%3Cpath d='M14.1 14.1a3 3 0 0 1-4.2-4.2'/%3E%3Cpath d='m2 2 20 20'/%3E%3C/svg%3E");
+}
+
+.kc-icon--restart {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3 12a9 9 0 1 0 3-6.7L3 8'/%3E%3Cpath d='M3 3v5h5'/%3E%3C/svg%3E");
+}
+
+.kc-icon--key {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='7.5' cy='15.5' r='4.5'/%3E%3Cpath d='m10.5 12.5 8-8'/%3E%3Cpath d='m16 7 2.5 2.5'/%3E%3C/svg%3E");
+}
+
+.kc-icon--lock {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='11' width='18' height='11' rx='2'/%3E%3Cpath d='M7 11V7a5 5 0 0 1 10 0v4'/%3E%3C/svg%3E");
+}
+
+.kc-icon--mobile {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='5' y='2' width='14' height='20' rx='2'/%3E%3Cpath d='M12 18h.01'/%3E%3C/svg%3E");
+}
+
+.kc-icon--list {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M8 6h13'/%3E%3Cpath d='M8 12h13'/%3E%3Cpath d='M8 18h13'/%3E%3Cpath d='M3 6h.01'/%3E%3Cpath d='M3 12h.01'/%3E%3Cpath d='M3 18h.01'/%3E%3C/svg%3E");
+}
+
+.kc-icon--chevron {
+  --kc-icon-src: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23000' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m9 18 6-6-6-6'/%3E%3C/svg%3E");
+}
+
+/* Mirror direction-sensitive glyphs in right-to-left locales. */
+[dir="rtl"] .kc-icon--chevron {
+  transform: scaleX(-1);
+}
+
+/* ---------------------------------------------------------
+   9. IDENTITY PROVIDERS
+   --------------------------------------------------------- */
+
+.kc-social {
+  margin-block-start: var(--kc-space-lg, 1.5rem);
+}
+
+/* base renders a bare <hr> before the provider list; turn it into a labelled
+   separator by styling the heading that follows it. */
+.kc-social hr {
+  height: var(--kc-border-width, 1px);
+  margin: 0 0 var(--kc-space-md, 1rem);
+  background-color: var(--kc-color-border, #e2e8f0);
+  border: none;
+}
+
+.kc-social h2 {
+  margin: 0 0 var(--kc-space-sm, 0.5rem);
+  font-family: var(--kc-font-family-heading, inherit);
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  font-weight: var(--kc-font-weight-medium, 500);
+  color: var(--kc-color-text-muted, #64748b);
+  text-align: center;
+}
+
+.kc-social__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-sm, 0.5rem);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+/* base switches to the grid class when a realm has more than three providers. */
+.kc-social__list--grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+}
+
+.kc-social__button {
+  background-color: var(--kc-color-surface-muted, #f8fafc);
+}
+
+.kc-social__logo {
+  flex: none;
+}
+
+.kc-social__name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ---------------------------------------------------------
+   10. FOOTER LINKS
+   --------------------------------------------------------- */
+
+/* Registration prompt ("New user? Register") and other #kc-info content. */
+.kc-signup {
+  margin-block-start: var(--kc-space-lg, 1.5rem);
+  padding-block-start: var(--kc-space-md, 1rem);
+  border-block-start: var(--kc-border-width, 1px) solid
+    var(--kc-color-border, #e2e8f0);
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  color: var(--kc-color-text-muted, #64748b);
+  text-align: center;
+}
+
+#kc-select-try-another-way-form {
+  margin-block-start: var(--kc-space-md, 1rem);
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  text-align: center;
+}
+
+/* Message-only pages — error.ftl ("We are sorry..."), info.ftl, the email
+   verification and logout confirmations. They carry no class properties, only
+   these ids and the `.instruction` paragraph. */
+#kc-error-message,
+#kc-info-message {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-md, 1rem);
+}
+
+.instruction {
+  margin: 0;
+  color: var(--kc-color-text-muted, #64748b);
+}
+
+/* ---------------------------------------------------------
+   11. LOCALE SWITCHER
+   --------------------------------------------------------- */
+
+/* Behaviour comes from base's menu-button-links.js, which only toggles
+   aria-expanded — the open state is pure CSS, no theme JavaScript. */
+.kc-locale {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.kc-locale__dropdown {
+  position: relative;
+}
+
+#kc-current-locale-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kc-space-xs, 0.25rem);
+  padding: var(--kc-space-xs, 0.25rem) var(--kc-space-sm, 0.5rem);
+  font-family: inherit;
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  color: var(--kc-color-text-muted, #64748b);
+  background-color: transparent;
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border, #e2e8f0);
+  border-radius: var(--kc-radius-full, 999px);
+  cursor: pointer;
+}
+
+#kc-current-locale-link:hover {
+  color: var(--kc-color-text, #0f172a);
+  background-color: var(--kc-color-surface-hover, #f1f5f9);
+}
+
+.kc-locale__list {
+  position: absolute;
+  inset-block-start: calc(100% + var(--kc-space-xs, 0.25rem));
+  inset-inline-end: 0;
+  z-index: 10;
+  display: none;
+  min-width: 10rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  padding: var(--kc-space-xs, 0.25rem);
+  margin: 0;
+  list-style: none;
+  background-color: var(--kc-color-surface, #ffffff);
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border, #e2e8f0);
+  border-radius: var(--kc-radius-md, 10px);
+  box-shadow: var(--kc-shadow-md, 0 4px 12px rgba(15, 23, 42, 0.08));
+}
+
+#kc-current-locale-link[aria-expanded="true"] + .kc-locale__list {
+  display: block;
+}
+
+.kc-locale__link {
+  display: block;
+  padding: var(--kc-space-xs, 0.25rem) var(--kc-space-sm, 0.5rem);
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  color: var(--kc-color-text, #0f172a);
+  border-radius: var(--kc-radius-sm, 6px);
+}
+
+.kc-locale__link:hover {
+  background-color: var(--kc-color-surface-hover, #f1f5f9);
+  text-decoration: none;
+}
+
+/* ---------------------------------------------------------
+   12. AUTHENTICATOR SELECTION & OTP PICKER
+   --------------------------------------------------------- */
+
+/* Shown by select-authenticator.ftl when a flow offers several second factors. */
+.kc-authn-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-sm, 0.5rem);
+  padding: 0;
+  margin: 0;
+  list-style: none;
+}
+
+.kc-authn-list__item {
+  display: flex;
+  align-items: center;
+  gap: var(--kc-space-md, 1rem);
+  padding: var(--kc-space-md, 1rem);
+  background-color: var(--kc-color-surface, #ffffff);
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border, #e2e8f0);
+  border-radius: var(--kc-radius-md, 10px);
+  cursor: pointer;
+  transition: border-color var(--kc-transition, 150ms ease),
+    background-color var(--kc-transition, 150ms ease);
+}
+
+.kc-authn-list__item:hover {
+  background-color: var(--kc-color-surface-hover, #f1f5f9);
+  border-color: var(--kc-color-primary, #4f46e5);
+}
+
+.kc-authn-list__icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 2.5rem;
+  height: 2.5rem;
+  color: var(--kc-color-primary, #4f46e5);
+  background-color: color-mix(
+    in srgb,
+    var(--kc-color-primary, #4f46e5) 10%,
+    transparent
+  );
+  border-radius: var(--kc-radius-sm, 6px);
+}
+
+.kc-authn-list__body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--kc-space-xs, 0.25rem);
+  min-width: 0;
+}
+
+.kc-authn-list__heading,
+.kc-authn-list__title {
+  font-weight: var(--kc-font-weight-medium, 500);
+  color: var(--kc-color-text, #0f172a);
+}
+
+.kc-authn-list__desc {
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  color: var(--kc-color-text-muted, #64748b);
+}
+
+.kc-authn-list__fill {
+  flex: 1 1 auto;
+}
+
+.kc-authn-list__arrow {
+  color: var(--kc-color-text-muted, #64748b);
+}
+
+/* OTP credential picker: a radio group rendered as selectable tiles. */
+.kc-otp-list {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--kc-space-sm, 0.5rem);
+  padding: var(--kc-space-sm, 0.5rem) var(--kc-space-md, 1rem);
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border, #e2e8f0);
+  border-radius: var(--kc-radius-md, 10px);
+  cursor: pointer;
+}
+
+.kc-otp-list__input {
+  accent-color: var(--kc-color-primary, #4f46e5);
+}
+
+.kc-otp-list__header {
+  display: flex;
+  align-items: center;
+  gap: var(--kc-space-sm, 0.5rem);
+}
+
+.kc-otp-list--selected {
+  border-color: var(--kc-color-primary, #4f46e5);
+  background-color: color-mix(
+    in srgb,
+    var(--kc-color-primary, #4f46e5) 8%,
+    transparent
+  );
+}
+
+/* ---------------------------------------------------------
+   13. RECOVERY CODES
+   --------------------------------------------------------- */
+
+.kc-recovery__list {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--kc-space-xs, 0.25rem);
+  padding: var(--kc-space-md, 1rem);
+  margin: var(--kc-space-md, 1rem) 0;
+  font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+  font-size: var(--kc-font-size-sm, 0.875rem);
+  list-style-position: inside;
+  background-color: var(--kc-color-surface-muted, #f8fafc);
+  border: var(--kc-border-width, 1px) solid var(--kc-color-border, #e2e8f0);
+  border-radius: var(--kc-radius-md, 10px);
+}
+
+.kc-recovery__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--kc-space-sm, 0.5rem);
+}
+
+.kc-recovery__confirm {
+  margin-block: var(--kc-space-md, 1rem);
+}
+
+/* ---------------------------------------------------------
+   14. UTILITIES & PREFERENCES
+   --------------------------------------------------------- */
+
+.kc-mt {
+  margin-block-start: var(--kc-space-md, 1rem);
+}
+
+/* Respect the OS "reduce motion" setting: transitions here are decorative. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Windows high-contrast mode replaces every colour with a system one; the
+   masked icons survive, but the card needs a real border to stay visible. */
+@media (forced-colors: active) {
+  .kc-card,
+  .kc-input,
+  .kc-btn {
+    border: 1px solid ButtonBorder;
+  }
+}
+
+/* Below the card width, drop the elevation and let the card fill the viewport
+   edge to edge — a floating card on a phone wastes horizontal space. */
+@media (max-width: 30rem) {
+  .kc-page {
+    padding: var(--kc-space-lg, 1.5rem) var(--kc-space-sm, 0.5rem);
+  }
+
+  .kc-card {
+    box-shadow: var(--kc-shadow-md, 0 4px 12px rgba(15, 23, 42, 0.08));
+  }
+}
