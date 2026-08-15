@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36" role="img" aria-label="Modern Auth">
+  <title>Modern Auth</title>
+  <!--
+    Tab icon, referenced by kcFaviconUrl in theme.properties.
+
+    Same mark as logo.svg, with the keyhole drawn ~10% larger and the corner
+    radius tightened: a favicon is rasterised at 16px, where the stem of the
+    logo version closes up into a blob. Everything else — the gradient, the
+    mask, the dark-mode swap — is identical.
+  -->
+  <style>
+    .badge-from { stop-color: #6366f1; }
+    .badge-to   { stop-color: #4338ca; }
+    @media (prefers-color-scheme: dark) {
+      .badge-from { stop-color: #818cf8; }
+      .badge-to   { stop-color: #6366f1; }
+    }
+  </style>
+
+  <defs>
+    <linearGradient id="fav-badge" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
+      <stop class="badge-from" offset="0"/>
+      <stop class="badge-to" offset="1"/>
+    </linearGradient>
+    <mask id="fav-keyhole">
+      <rect width="36" height="36" rx="8" fill="#ffffff"/>
+      <circle cx="18" cy="14.2" r="5" fill="#000000"/>
+      <path d="M15.2 17h5.6l1.2 8.2a1.8 1.8 0 0 1-1.78 2h-4.24a1.8 1.8 0 0 1-1.78-2Z" fill="#000000"/>
+    </mask>
+  </defs>
+
+  <rect width="36" height="36" rx="8" fill="url(#fav-badge)" mask="url(#fav-keyhole)"/>
+</svg>
