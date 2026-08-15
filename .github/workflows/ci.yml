@@ -1,0 +1,265 @@
+name: CI
+
+# Prose-only changes (the articles, the README) cannot break the stack, so they
+# skip CI. This is an ignore-list rather than an allow-list on purpose: anything
+# new that lands in the repo runs CI by default, and only the paths listed here
+# opt out. workflow_dispatch takes no filter, so a manual run is always possible.
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+  pull_request:
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+      - "LICENSE"
+      - ".gitignore"
+  workflow_dispatch:
+
+# These jobs only read the repository; drop everything else from GITHUB_TOKEN.
+permissions:
+  contents: read
+
+# A new push to the same branch/PR supersedes the runs already queued for it.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # =========================================================
+  # Static validation of the Compose stack.
+  # Validating against .env.example (rather than an env block written inline
+  # here) also proves the committed template is complete and correct — a
+  # missing or malformed variable fails this job.
+  # =========================================================
+  validate-docker:
+    name: Docker Compose
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Validate compose.yml against .env.example
+        run: docker compose --env-file .env.example config --quiet
+
+  # =========================================================
+  # Custom themes and provider JARs mounted into the container.
+  # Both checks are a few seconds of shell, so they share one runner.
+  # =========================================================
+  validate-assets:
+    name: Themes & providers
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Check provider JARs are valid archives
+        run: |
+          # nullglob turns an unmatched pattern into an empty array instead of
+          # the literal string, so a missing or empty keycloak/providers/ is a
+          # pass, not a failure.
+          shopt -s nullglob
+          jars=(keycloak/providers/*.jar)
+          if [ ${#jars[@]} -eq 0 ]; then
+            echo "No provider JARs found — nothing to validate"
+            exit 0
+          fi
+          failed=0
+          for jar in "${jars[@]}"; do
+            if unzip -t "$jar" > /dev/null 2>&1; then
+              echo "OK: $jar"
+            else
+              echo "ERROR: $jar is not a valid JAR"
+              failed=1
+            fi
+          done
+          exit $failed
+
+      - name: Validate theme structure
+        run: |
+          # Keycloak resolves themes PER TYPE — a realm picks its login,
+          # account, admin and email theme independently — so a theme is not
+          # required to implement all of them. A login-only theme is valid and
+          # is the common case. What we enforce instead:
+          #
+          #   1. every subdirectory is a recognized theme type (a typo like
+          #      "logn/" is silently ignored by Keycloak, never reported),
+          #   2. every type directory present has theme.properties (without it
+          #      the type is not registered),
+          #   3. a theme implements at least one type,
+          #   4. parent= is set and valid FOR THAT TYPE.
+          #
+          # Built-in parents differ per type — "keycloak.v2" is a login theme
+          # AND a separate admin theme, while accounts parent to
+          # "keycloak.v3". Regenerate this map after a Keycloak upgrade with:
+          #   docker run --rm --entrypoint sh quay.io/keycloak/keycloak:26.6 -c \
+          #     'cd /opt/keycloak/lib/lib/main && for j in *themes*.jar *-ui-*.jar; do
+          #        unzip -Z1 "$j" "theme/*"; done' | awk -F/ 'NF>=3{print $3" <- "$2}' | sort -u
+          shopt -s nullglob
+
+          VALID_TYPES="login account admin email welcome common"
+
+          # Built-in themes providing each type, from Keycloak 26.6.1.
+          builtin_parents_for() {
+            case "$1" in
+              login)   echo "base keycloak keycloak.v2" ;;
+              account) echo "base keycloak.v3" ;;
+              admin)   echo "base keycloak.v2" ;;
+              email)   echo "base keycloak" ;;
+              welcome) echo "keycloak" ;;
+              common)  echo "keycloak" ;;
+            esac
+          }
+
+          # As above: a missing or empty keycloak/themes/ is a pass.
+          themes=(keycloak/themes/*/)
+          if [ ${#themes[@]} -eq 0 ]; then
+            echo "No themes found — nothing to validate"
+            exit 0
+          fi
+
+          failed=0
+          for theme_dir in "${themes[@]}"; do
+            theme=$(basename "$theme_dir")
+            types_found=0
+
+            for type_dir in "$theme_dir"*/; do
+              type=$(basename "$type_dir")
+
+              case " $VALID_TYPES " in
+                *" $type "*) ;;
+                *)
+                  echo "ERROR: $theme/$type — not a theme type (expected one of: $VALID_TYPES)"
+                  failed=1
+                  continue
+                  ;;
+              esac
+
+              types_found=$((types_found + 1))
+              props="${type_dir}theme.properties"
+
+              if [ ! -f "$props" ]; then
+                echo "ERROR: $theme/$type — missing theme.properties"
+                failed=1
+                continue
+              fi
+
+              parent=$(grep "^parent=" "$props" | cut -d= -f2- | tr -d '[:space:]')
+              if [ -z "$parent" ]; then
+                echo "ERROR: $theme/$type — no parent= in theme.properties"
+                failed=1
+                continue
+              fi
+
+              is_valid=false
+              for builtin in $(builtin_parents_for "$type"); do
+                [ "$parent" = "$builtin" ] && is_valid=true && break
+              done
+              # A local theme may also serve as a parent, but only if it
+              # actually implements the same type.
+              if ! $is_valid && [ -d "keycloak/themes/$parent/$type" ]; then
+                is_valid=true
+              fi
+
+              if $is_valid; then
+                echo "OK: $theme/$type -> $parent"
+              else
+                echo "ERROR: $theme/$type — parent '$parent' provides no $type theme (built-in for $type: $(builtin_parents_for "$type"))"
+                failed=1
+              fi
+            done
+
+            # An empty keycloak/themes/ is fine (handled above), but a theme
+            # directory that implements no type is not: git cannot track a
+            # truly empty directory, so this almost always means the theme was
+            # authored one level too high — theme.properties and resources/
+            # directly under the theme instead of under login/, account/, ...
+            # Keycloak ignores such a theme silently.
+            if [ "$types_found" -eq 0 ]; then
+              echo "ERROR: $theme — implements no theme type (expected a subdirectory: $VALID_TYPES)"
+              failed=1
+            fi
+          done
+
+          exit $failed
+
+  # =========================================================
+  # Boot the real stack and prove it serves OIDC.
+  # This is what catches broken image tags, a bad JDBC URL, a volume path the
+  # Postgres image no longer uses, or a hostname setting that produces
+  # unreachable issuer URLs — none of which `compose config` can see.
+  # =========================================================
+  smoke-test:
+    name: Smoke test
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    needs: validate-docker
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          # Compose takes the last occurrence of a duplicated key, so this
+          # overrides the template without editing it. The runner may already
+          # have something bound to 5432.
+          echo "KEYCLOAK_POSTGRES_PORT=55432" >> .env
+
+      - name: Start the stack
+        run: docker compose up -d
+
+      - name: Wait for Keycloak to serve OIDC discovery
+        run: |
+          # The discovery document is only served once Keycloak has started AND
+          # loaded the master realm from Postgres, so a 200 here exercises the
+          # whole path: image, JDBC connection, schema migration, HTTP listener.
+          url="http://localhost:8080/realms/master/.well-known/openid-configuration"
+          for i in $(seq 1 60); do
+            if curl -sf "$url" -o discovery.json; then
+              echo "Ready after ${i}0s"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "ERROR: Keycloak did not become ready within 600s"
+          exit 1
+
+      - name: Assert issuer matches KEYCLOAK_HOSTNAME
+        run: |
+          issuer=$(jq -r '.issuer' discovery.json)
+          echo "issuer: $issuer"
+          if [ "$issuer" != "http://localhost:8080/realms/master" ]; then
+            echo "ERROR: unexpected issuer — check KC_HOSTNAME / KC_PROXY_HEADERS"
+            exit 1
+          fi
+          # Every advertised endpoint must sit under the same public base URL —
+          # a mismatch here is what sends clients to a host they cannot reach.
+          # Note: the endpoint itself answers 400 without a client_id, so this
+          # asserts the URL, not a successful fetch.
+          auth_endpoint=$(jq -r '.authorization_endpoint' discovery.json)
+          case "$auth_endpoint" in
+            http://localhost:8080/realms/master/*) echo "OK: $auth_endpoint" ;;
+            *) echo "ERROR: authorization endpoint outside expected base URL: $auth_endpoint"; exit 1 ;;
+          esac
+
+      - name: Assert admin console responds
+        run: curl -sf http://localhost:8080/admin/ -o /dev/null
+
+      - name: Assert database is healthy
+        run: |
+          status=$(docker inspect --format '{{.State.Health.Status}}' keycloak-db-container)
+          echo "keycloak-db-container: $status"
+          [ "$status" = "healthy" ]
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --no-color
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
