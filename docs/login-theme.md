@@ -75,8 +75,10 @@ keycloak/themes/
 
 The directory names are the theme names — that string is what you select in the
 admin console. `login/` is the *theme type*; a theme may also provide `account/`,
-`admin/`, `email/` and `welcome/`, independently of one another. This one is
-login-only.
+`admin/`, `email/` and `welcome/`, independently of one another. Both themes
+above also ship an `email/` type, which reads the same `common/` palette — see
+[docs/email-theme.md](email-theme.md); `account/` and `admin/` are not
+implemented here.
 
 `compose.yml` bind-mounts `./keycloak/themes` read-only at
 `/opt/keycloak/themes`, which is where Keycloak looks for filesystem themes.
