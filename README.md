@@ -32,6 +32,32 @@ it over the private `keycloak-network` bridge. Data lives in the named volume
 `keycloak-database`; `keycloak/themes` and `keycloak/providers` are bind-mounted
 read-only for custom themes and SPI JARs.
 
+## Login theme
+
+`keycloak/themes/modern.base` is a token-driven login theme: one template, one
+stylesheet, and 58 design tokens (plus 24 dark-mode overrides) declared in
+`common/theme.properties`. The stylesheet never hardcodes a colour, radius or
+spacing value — it only reads tokens — so a child theme rebrands every login page
+by overriding values, with no CSS to copy. The palette sits in a `common` theme
+so the email and account types can later read the very same values.
+
+`keycloak/themes/acme` is that child theme: 20 lines of properties and a logo.
+Its whole brand is one file, `acme/common/theme.properties`:
+
+```properties
+parent=modern.base
+
+kcTokenColorPrimary=#0d9488
+kcTokenRadiusLg=8px
+```
+
+Apply one in **Realm settings → Themes → Login theme**. In `start-dev` the theme
+cache is off, so edits show up on the next page load.
+
+**Full reference: [docs/login-theme.md](docs/login-theme.md)** — how Keycloak
+resolves a theme, the token pipeline, the complete token list, dark mode,
+building your own child theme, and troubleshooting.
+
 ## Configuration
 
 All settings come from `.env` (git-ignored). `.env.example` is the committed
