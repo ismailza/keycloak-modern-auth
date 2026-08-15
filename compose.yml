@@ -1,0 +1,169 @@
+# Explicit project name: keeps container, network and volume names stable
+# regardless of the directory this repo is cloned into. The database volume is
+# named after it, so renaming the project orphans your realms.
+name: keycloak-modern-auth
+
+# Full walkthrough of this file: docs/docker-configuration.md
+
+services:
+  # =========================================================
+  # KEYCLOAK DATABASE SERVICE
+  # Stores every realm, client, user and role. Keycloak's embedded H2 database
+  # is not supported beyond a first look, so we start on the same engine we
+  # would run in production.
+  # =========================================================
+  keycloak-database:
+    container_name: keycloak-db-container
+    image: postgres:18
+    restart: unless-stopped
+    # Gate for `depends_on: service_healthy` on the keycloak service.
+    # start_period gives the first boot room to run initdb without burning
+    # retries (failures during that window are not counted).
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -d ${KEYCLOAK_POSTGRES_DB} || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    environment:
+      # POSTGRES_* are read by the image entrypoint ONLY on first start, while
+      # the data directory is still empty. Changing them later has no effect on
+      # an existing volume.
+      POSTGRES_USER: ${KEYCLOAK_POSTGRES_USER}
+      POSTGRES_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD}
+      POSTGRES_DB: ${KEYCLOAK_POSTGRES_DB}
+      # UTF8: Keycloak stores localized text and user attributes.
+      # locale=C: deterministic byte-order collation, immune to host locale and
+      # to glibc collation-version changes breaking existing indexes.
+      POSTGRES_INITDB_ARGS: "-E UTF8 --locale=C"
+    # Published for local inspection with psql//GUI clients only — Keycloak
+    # reaches the DB over the bridge network, not through this mapping.
+    # Remove this block on any shared or public host.
+    ports:
+      - ${KEYCLOAK_POSTGRES_PORT}:5432
+    # Named volume rather than a bind mount: avoids the ownership and fsync
+    # problems bind-mounted Postgres data directories hit on macOS/Windows.
+    # `docker compose down -v` destroys it, and with it every realm.
+    volumes:
+      - keycloak-database:/var/lib/postgresql
+    networks:
+      - keycloak-network
+    # Honoured by Compose V2 outside Swarm. limits = hard ceiling (OOM kill
+    # past it), reservations = soft scheduling hint.
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+        reservations:
+          memory: 256M
+
+  # =========================================================
+  # KEYCLOAK SERVICE
+  # =========================================================
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.6
+    container_name: keycloak-container
+    # start-dev: HTTP allowed, relaxed hostname checks, no build step, no theme
+    # caching. Production uses `start` on an image pre-built with `kc.sh build`.
+    # --import-realm imports every *.json found in /opt/keycloak/data/import on
+    # each start (existing realms are skipped). It is a no-op until that
+    # directory is mounted — see docs/docker-configuration.md#the-command.
+    command: start-dev --import-realm
+    restart: unless-stopped
+    # Every Keycloak CLI option has an env-var form: --db-url -> KC_DB_URL.
+    environment:
+      # --- Database -----------------------------------------------------
+      # Host is the *container* name resolved by the bridge network's DNS, and
+      # the port is the internal 5432 — never ${KEYCLOAK_POSTGRES_PORT}, which
+      # is a host-side detail.
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://keycloak-db-container:5432/${KEYCLOAK_POSTGRES_DB}
+      KC_DB_USERNAME: ${KEYCLOAK_POSTGRES_USER}
+      KC_DB_PASSWORD: ${KEYCLOAK_POSTGRES_PASSWORD}
+
+      # --- Hostname -----------------------------------------------------
+      # Public base URL Keycloak advertises: it ends up in the OIDC discovery
+      # document, token issuers and redirects. A wrong value is the usual cause
+      # of "works in the admin console, fails in my app".
+      # STRICT=false lets the host be inferred from the request (handy locally);
+      # set true in production so a spoofed Host header cannot rewrite issuers.
+      KC_HOSTNAME: ${KEYCLOAK_HOSTNAME}
+      KC_HOSTNAME_STRICT: ${KEYCLOAK_HOSTNAME_STRICT}
+
+      # --- HTTP ---------------------------------------------------------
+      # Plain HTTP. Fine locally; in production only behind a TLS-terminating
+      # proxy on a trusted network.
+      KC_HTTP_ENABLED: ${KEYCLOAK_HTTP_ENABLED}
+
+      # --- Proxy --------------------------------------------------------
+      # Which forwarding headers to trust when rebuilding the original request
+      # URL: xforwarded (X-Forwarded-*) or forwarded (RFC 7239). Only set this
+      # when a reverse proxy is actually in front AND strips client-sent
+      # forwarding headers, otherwise clients can forge them.
+      KC_PROXY_HEADERS: ${KEYCLOAK_PROXY_HEADERS}
+
+      # --- Logging ------------------------------------------------------
+      # ${VAR:-default} is Compose's own fallback, so these two stay valid even
+      # if absent from .env. Levels also accept per-category overrides, e.g.
+      # "info,org.keycloak.events:debug".
+      # json output is one event per line — pipe through jq, Loki or ELK; use
+      # "default" for human-readable console logs.
+      KC_LOG_LEVEL: ${KEYCLOAK_LOG_LEVEL:-info}
+      KC_LOG_CONSOLE_OUTPUT: json
+
+      # --- Health & metrics ---------------------------------------------
+      # Exposes /health/live, /health/ready and /health/started (and /metrics
+      # when enabled) on the MANAGEMENT port 9000, not on 8080. That port is
+      # not published here — probe from inside the container, or map 9000:9000.
+      # Metrics stay off by default because the endpoint is unauthenticated.
+      KC_HEALTH_ENABLED: true
+      KC_METRICS_ENABLED: ${KEYCLOAK_METRICS_ENABLED:-false}
+
+      # --- Admin bootstrap ----------------------------------------------
+      # Creates the temporary master-realm admin on FIRST start only (replaces
+      # the deprecated KEYCLOAK_ADMIN/KEYCLOAK_ADMIN_PASSWORD). Editing these
+      # later does nothing. In production: use once, create a real admin with
+      # MFA, then delete this account.
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_BOOTSTRAP_ADMIN_USERNAME}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_BOOTSTRAP_ADMIN_PASSWORD}
+
+    # Admin console: http://localhost:${KEYCLOAK_PORT}/admin
+    ports:
+      - ${KEYCLOAK_PORT}:8080
+    # Read-only: the container never writes here, and :ro keeps a misbehaving
+    # provider out of your working tree. themes/ is hot-reloaded in dev mode;
+    # providers/ (SPI JARs) needs a restart, and a rebuild in production.
+    volumes:
+      - ./keycloak/themes:/opt/keycloak/themes:ro
+      - ./keycloak/providers:/opt/keycloak/providers:ro
+    # Long form is required: a bare depends_on only waits for the container to
+    # be created, and Keycloak exits if the database is not accepting
+    # connections at startup.
+    depends_on:
+      keycloak-database:
+        condition: service_healthy
+    networks:
+      - keycloak-network
+    # JVM heap is sized from the cgroup limit, so this ceiling also caps the
+    # heap. Below ~1G startup slows down and GC pressure shows as latency.
+    deploy:
+      resources:
+        limits:
+          memory: 2G
+          cpus: '2'
+        reservations:
+          memory: 1G
+          cpus: '1'
+
+# Full name is keycloak-modern-auth_keycloak-database. It holds the Postgres
+# data directory — realms, clients, users, sessions. `docker compose down` keeps
+# it; `down -v` deletes it permanently.
+volumes:
+  keycloak-database:
+    driver: local
+
+# User-defined bridge: unlike the default bridge it provides DNS resolution
+# between containers by name, which is what makes the JDBC URL above resolve.
+networks:
+  keycloak-network:
+    driver: bridge
